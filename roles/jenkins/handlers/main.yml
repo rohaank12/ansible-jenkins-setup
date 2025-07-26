@@ -1,0 +1,7 @@
+# roles/jenkins/handlers/main.yml
+---
+- name: Restart Jenkins
+  ansible.builtin.service:
+    name: jenkins
+    state: restarted
+  listen: "Restart Jenkins" # Listen for the "Restart Jenkins" notification

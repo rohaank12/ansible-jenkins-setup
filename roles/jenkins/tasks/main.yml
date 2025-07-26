@@ -1,0 +1,63 @@
+# roles/jenkins/tasks/main.yml
+---
+- name: Update apt cache for Jenkins repository
+  ansible.builtin.apt:
+    update_cache: yes
+  tags:
+    - jenkins
+    - apt
+
+- name: Add Jenkins GPG key
+  ansible.builtin.apt_key:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    keyring: /usr/share/keyrings/jenkins-keyring.asc
+    state: present
+  tags:
+    - jenkins
+
+- name: Add Jenkins repository to sources.list
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
+    state: present
+  tags:
+    - jenkins
+    - apt
+
+- name: Install Jenkins
+  ansible.builtin.apt:
+    name: jenkins
+    state: present
+  notify: Restart Jenkins # Trigger handler to restart Jenkins if it was already running
+  tags:
+    - jenkins
+
+- name: Ensure Jenkins service is running and enabled
+  ansible.builtin.service:
+    name: jenkins
+    state: started
+    enabled: yes
+  tags:
+    - jenkins
+
+- name: Wait for Jenkins to start on port 8080
+  ansible.builtin.wait_for:
+    port: 8080
+    host: 127.0.0.1
+    timeout: 300 # Wait up to 5 minutes for Jenkins to become available
+    msg: "Jenkins service did not start on port 8080 within the timeout."
+  tags:
+    - jenkins
+
+- name: Get initial admin password
+  ansible.builtin.shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: jenkins_initial_password
+  changed_when: false # This command doesn't change anything, so don't report it as changed
+  no_log: true # Prevent the password from appearing in logs for security
+  tags:
+    - jenkins
+
+- name: Display initial admin password
+  ansible.builtin.debug:
+    msg: "Jenkins initial admin password: {{ jenkins_initial_password.stdout }}"
+  tags:
+    - jenkins

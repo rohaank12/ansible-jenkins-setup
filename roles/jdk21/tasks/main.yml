@@ -1,0 +1,71 @@
+# roles/jdk21/tasks/main.yml
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+  tags:
+    - jdk
+    - apt
+
+- name: Install prerequisites for adding repositories
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - apt-transport-https
+    - ca-certificates
+    - wget
+    - gnupg
+  tags:
+    - jdk
+    - apt
+
+- name: Add Adoptium GPG key
+  ansible.builtin.shell: |
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null
+  args:
+    creates: /etc/apt/trusted.gpg.d/adoptium.gpg # Only run if the key isn't already there
+  tags:
+    - jdk
+
+- name: Add Adoptium repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://packages.adoptium.net/artifactory/deb {{ ansible_distribution_release }} main"
+    state: present
+  tags:
+    - jdk
+    - apt
+
+- name: Install Temurin JDK 21
+  ansible.builtin.apt:
+    name: temurin-21-jdk
+    state: present
+  tags:
+    - jdk
+
+- name: Set JAVA_HOME environment variable in /etc/environment
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^JAVA_HOME='
+    line: 'JAVA_HOME="/usr/lib/jvm/temurin-21-jdk-amd64"'
+    state: present
+  tags:
+    - jdk
+
+- name: Update alternatives for Java (ensure JDK21 is default)
+  ansible.builtin.alternatives:
+    name: java
+    link: /usr/bin/java
+    path: /usr/lib/jvm/temurin-21-jdk-amd64/bin/java
+    priority: 2100 # Set a high priority to make it the default
+  tags:
+    - jdk
+
+- name: Update alternatives for Javac (ensure JDK21 is default)
+  ansible.builtin.alternatives:
+    name: javac
+    link: /usr/bin/javac
+    path: /usr/lib/jvm/temurin-21-jdk-amd64/bin/javac
+    priority: 2100 # Set a high priority to make it the default
+  tags:
+    - jdk

@@ -1,0 +1,10 @@
+# playbook.yml
+---
+- name: Setup JDK 21 and Jenkins on localhost
+  hosts: localhost
+  become: yes # This is required to run commands with elevated privileges (e.g., apt, service management)
+  gather_facts: yes # Gather facts about the remote host (localhost in this case)
+
+  roles:
+    - role: jdk21
+    - role: jenkins
