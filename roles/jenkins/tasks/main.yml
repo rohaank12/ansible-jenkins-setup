@@ -7,13 +7,23 @@
     - jenkins
     - apt
 
-- name: Add Jenkins GPG key
-  ansible.builtin.apt_key:
-    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
-    keyring: /usr/share/keyrings/jenkins-keyring.asc
-    state: present
+# --- START OF CHANGE ---
+- name: Create /usr/share/keyrings directory if it doesn't exist
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
   tags:
     - jenkins
+
+- name: Download Jenkins GPG key
+  ansible.builtin.get_url:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    dest: /usr/share/keyrings/jenkins-keyring.asc
+    mode: '0644'
+  tags:
+    - jenkins
+# --- END OF CHANGE ---
 
 - name: Add Jenkins repository to sources.list
   ansible.builtin.apt_repository:
