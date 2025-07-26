@@ -1,10 +1,11 @@
 # playbook.yml
 ---
-- name: Setup JDK 21 and Jenkins on localhost
+- name: Setup Docker, JDK 21, and Jenkins on localhost
   hosts: localhost
-  become: yes # This is required to run commands with elevated privileges (e.g., apt, service management)
-  gather_facts: yes # Gather facts about the remote host (localhost in this case)
+  become: yes # Required for installing packages and managing services
+  gather_facts: yes
 
   roles:
+    - role: docker # NEW: Add the Docker role first
     - role: jdk21
     - role: jenkins
