@@ -1,77 +1,31 @@
-# roles/docker/tasks/main.yml
----
-- name: Update apt cache
-  ansible.builtin.apt:
-    update_cache: yes
-  tags:
-    - docker
-    - apt
 
-- name: Install prerequisites for Docker
-  ansible.builtin.apt:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - apt-transport-https
-    - ca-certificates
-    - curl
-    - gnupg
-    - lsb-release
-  tags:
-    - docker
-    - apt
+- name: Update Cache 
+  package: update_cache=yes
 
-- name: Create /etc/apt/keyrings directory for Docker GPG key
-  ansible.builtin.file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: '0755'
-  tags:
-    - docker
+- name: Install Docker Daemon & dependencies for Trivy
+  package: name={{ item }} state=present
+  loop:  [ 'docker.io', 'curl', 'gnupg', 'lsb-release' ]
 
-- name: Download Docker's official GPG key
-  ansible.builtin.get_url:
-    url: https://download.docker.com/linux/ubuntu/gpg
-    dest: /etc/apt/keyrings/docker.gpg
-    mode: '0644' # Ensure correct permissions
-  tags:
-    - docker
+- name: Start Docker Service  # Start Docker Daemon #
+  service: name=docker state=started
 
-- name: Add Docker repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-    state: present
-    update_cache: yes # Update cache after adding repo
-  tags:
-    - docker
-    - apt
+- name: Permission for user   # Allow to run Docker #
+  user: name={{demouser}} group=docker
 
-- name: Install Docker packages
-  ansible.builtin.apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-buildx-plugin
-      - docker-compose-plugin
-    state: present
-  tags:
-    - docker
+- name: Download Trivy binary from GitHub
+  get_url:
+   url: "https://github.com/aquasecurity/trivy/releases/download/v0.25.0/trivy_0.25.0_Linux-64bit.tar.gz"
+   dest: "/tmp/trivy.tar.gz"
 
-- name: Add current user to 'docker' group
-  # ansible_user_id holds the user ID Ansible is running as on the target host.
-  # This is usually your non-root user for `localhost`.
-  ansible.builtin.user:
-    name: "{{ ansible_user_id }}"
-    groups: docker
-    append: yes
-  tags:
-    - docker
+- name: Extract Trivy package
+  unarchive:
+    src: "/tmp/trivy.tar.gz"
+    dest: "/usr/local/bin/"
+    remote_src: yes
 
-- name: Ensure docker service is running and enabled
-  ansible.builtin.service:
-    name: docker
-    state: started
-    enabled: yes
-  tags:
-    - docker
+- name: Clean up downloaded tarball
+  file:
+    path: "/tmp/trivy.tar.gz"
+    state: absent
+
+

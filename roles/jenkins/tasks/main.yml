@@ -1,84 +1,73 @@
-# roles/docker/tasks/main.yml
+# roles/jenkins/tasks/main.yml
 ---
-- name: Update apt cache
+- name: Update apt cache for Jenkins repository
   ansible.builtin.apt:
     update_cache: yes
   tags:
-    - docker
+    - jenkins
     - apt
 
-- name: Install prerequisites for Docker
-  ansible.builtin.apt:
-    name: "{{ item }}"
-    state: present
-  loop:
-    - apt-transport-https
-    - ca-certificates
-    - curl
-    - gnupg
-    - lsb-release
-  tags:
-    - docker
-    - apt
-
-- name: Create /etc/apt/keyrings directory for Docker GPG key
+# --- START OF CHANGE ---
+- name: Create /usr/share/keyrings directory if it doesn't exist
   ansible.builtin.file:
-    path: /etc/apt/keyrings
+    path: /usr/share/keyrings
     state: directory
     mode: '0755'
   tags:
-    - docker
+    - jenkins
 
-# --- START OF CHANGE: More robust GPG key addition ---
-- name: Download and add Docker's official GPG key
-  ansible.builtin.shell: |
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  args:
-    creates: /etc/apt/keyrings/docker.gpg # Only run if the key isn't already there
+- name: Download Jenkins GPG key
+  ansible.builtin.get_url:
+    url: https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+    dest: /usr/share/keyrings/jenkins-keyring.asc
+    mode: '0644'
   tags:
-    - docker
-
-- name: Set correct permissions for Docker GPG key
-  ansible.builtin.file:
-    path: /etc/apt/keyrings/docker.gpg
-    mode: '0644' # Ensure correct permissions
-  tags:
-    - docker
+    - jenkins
 # --- END OF CHANGE ---
 
-- name: Add Docker repository
+- name: Add Jenkins repository to sources.list
   ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }} signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    repo: "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/"
     state: present
-    update_cache: yes # Update cache after adding repo
   tags:
-    - docker
+    - jenkins
     - apt
 
-- name: Install Docker packages
+- name: Install Jenkins
   ansible.builtin.apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-buildx-plugin
-      - docker-compose-plugin
+    name: jenkins
     state: present
+  notify: Restart Jenkins # Trigger handler to restart Jenkins if it was already running
   tags:
-    - docker
+    - jenkins
 
-- name: Add current user to 'docker' group
-  ansible.builtin.user:
-    name: "{{ ansible_user_id }}"
-    groups: docker
-    append: yes
-  tags:
-    - docker
-
-- name: Ensure docker service is running and enabled
+- name: Ensure Jenkins service is running and enabled
   ansible.builtin.service:
-    name: docker
+    name: jenkins
     state: started
     enabled: yes
   tags:
-    - docker
+    - jenkins
+
+- name: Wait for Jenkins to start on port 8080
+  ansible.builtin.wait_for:
+    port: 8080
+    host: 127.0.0.1
+    timeout: 300 # Wait up to 5 minutes for Jenkins to become available
+    msg: "Jenkins service did not start on port 8080 within the timeout."
+  tags:
+    - jenkins
+
+- name: Get initial admin password
+  ansible.builtin.shell: cat /var/lib/jenkins/secrets/initialAdminPassword
+  register: jenkins_initial_password
+  changed_when: false # This command doesn't change anything, so don't report it as changed
+  no_log: true # Prevent the password from appearing in logs for security
+  tags:
+    - jenkins
+
+- name: Display initial admin password
+  ansible.builtin.debug:
+    msg: "Jenkins initial admin password: {{ jenkins_initial_password.stdout }}"
+  tags:
+    - jenkins
