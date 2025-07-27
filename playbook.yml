@@ -1,12 +1,20 @@
 # playbook.yml
 ---
-- name: Setup Docker, JDK 21, Jenkins, and Trivy on localhost
+- name: Setup various tools on localhost
   hosts: localhost
   become: yes # Required for installing packages and managing services
   gather_facts: yes
 
   roles:
     - role: docker
-    - role: trivy 
+      tags:
+        - docker_install # Tag for Docker installation
+    - role: trivy
+      tags:
+        - trivy_install # Tag for Trivy installation
     - role: jdk21
+      tags:
+        - jdk21_install # Tag for JDK 21 installation
     - role: jenkins
+      tags:
+        - jenkins_install # Tag for Jenkins installation
